@@ -1,15 +1,190 @@
 import java.io.*;
 import java.util.*;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
-// ------------------------------ CLASSES ------------------------------------
+// ============================================================
+//   SCHOOL CRM - DSA Lab Project
+//   Data Structures Used:
+//   1. LinkedList  - for Attendance Records
+//   2. Stack       - for Marks (last entered mark can be undone)
+//   3. HashMap     - for Students and Teachers (fast lookup by ID)
+// ============================================================
 
-// Student Model
+
+// ======================== NODE FOR LINKED LIST ========================
+// Each node holds one attendance record and points to the next node
+class AttendanceNode {
+    String studentId;
+    String date;
+    String status; // "Present" or "Absent"
+    AttendanceNode next; // pointer to next node
+
+    AttendanceNode(String studentId, String date, String status) {
+        this.studentId = studentId;
+        this.date = date;
+        this.status = status;
+        this.next = null;
+    }
+}
+
+// ======================== LINKED LIST CLASS ========================
+// A simple singly linked list to store attendance records
+class AttendanceLinkedList {
+    AttendanceNode head; // first node
+
+    AttendanceLinkedList() {
+        head = null;
+    }
+
+    // Add a new attendance record at the end of the list
+    void addRecord(String studentId, String date, String status) {
+        AttendanceNode newNode = new AttendanceNode(studentId, date, status);
+
+        // If list is empty, new node becomes head
+        if (head == null) {
+            head = newNode;
+            return;
+        }
+
+        // Otherwise go to last node and attach new node
+        AttendanceNode current = head;
+        while (current.next != null) {
+            current = current.next;
+        }
+        current.next = newNode;
+    }
+
+    // Update existing record if same student and same date
+    // Returns true if updated, false if not found
+    boolean updateRecord(String studentId, String date, String status) {
+        AttendanceNode current = head;
+        while (current != null) {
+            if (current.studentId.equals(studentId) && current.date.equals(date)) {
+                current.status = status;
+                return true;
+            }
+            current = current.next;
+        }
+        return false;
+    }
+
+    // Count total days for a student between two dates
+    int countTotalDays(String studentId, String startDate, String endDate) {
+        int count = 0;
+        AttendanceNode current = head;
+        while (current != null) {
+            if (current.studentId.equals(studentId)) {
+                if (current.date.compareTo(startDate) >= 0 && current.date.compareTo(endDate) <= 0) {
+                    count++;
+                }
+            }
+            current = current.next;
+        }
+        return count;
+    }
+
+    // Count present days for a student between two dates
+    int countPresentDays(String studentId, String startDate, String endDate) {
+        int count = 0;
+        AttendanceNode current = head;
+        while (current != null) {
+            if (current.studentId.equals(studentId) && current.status.equals("Present")) {
+                if (current.date.compareTo(startDate) >= 0 && current.date.compareTo(endDate) <= 0) {
+                    count++;
+                }
+            }
+            current = current.next;
+        }
+        return count;
+    }
+}
+
+
+// ======================== NODE FOR STACK ========================
+// Each node holds one marks record and points to the node below it
+class MarksNode {
+    String studentId;
+    String examId;
+    double marksObtained;
+    MarksNode below; // points to node below in stack
+
+    MarksNode(String studentId, String examId, double marksObtained) {
+        this.studentId = studentId;
+        this.examId = examId;
+        this.marksObtained = marksObtained;
+        this.below = null;
+    }
+}
+
+// ======================== STACK CLASS ========================
+// A simple stack (Last In First Out) to store marks
+// Top of stack = most recently entered mark
+class MarksStack {
+    MarksNode top; // top of stack
+    int size;
+
+    MarksStack() {
+        top = null;
+        size = 0;
+    }
+
+    // Push a new marks entry on top of stack
+    void push(String studentId, String examId, double marksObtained) {
+        MarksNode newNode = new MarksNode(studentId, examId, marksObtained);
+        newNode.below = top;
+        top = newNode;
+        size++;
+    }
+
+    // Remove and return top entry (undo last marks entry)
+    MarksNode pop() {
+        if (top == null) {
+            return null;
+        }
+        MarksNode removed = top;
+        top = top.below;
+        size--;
+        return removed;
+    }
+
+    // Check if mark exists for a student in a specific exam
+    // If yes, update it; if no, push new entry
+    void addOrUpdate(String studentId, String examId, double marksObtained) {
+        MarksNode current = top;
+        while (current != null) {
+            if (current.studentId.equals(studentId) && current.examId.equals(examId)) {
+                current.marksObtained = marksObtained; // update existing
+                return;
+            }
+            current = current.below;
+        }
+        push(studentId, examId, marksObtained); // add new
+    }
+
+    // Find marks for a specific student and exam
+    // Returns -1 if not found
+    double findMarks(String studentId, String examId) {
+        MarksNode current = top;
+        while (current != null) {
+            if (current.studentId.equals(studentId) && current.examId.equals(examId)) {
+                return current.marksObtained;
+            }
+            current = current.below;
+        }
+        return -1;
+    }
+}
+
+
+// ======================== MODEL CLASSES ========================
+
 class Student {
-    String id, name, className, section, parentContact;
-    double totalFee, feePaid;
+    String id;
+    String name;
+    String className;
+    String section;
+    String parentContact;
+    double totalFee;
+    double feePaid;
 
     Student(String id, String name, String className, String section, String parentContact, double totalFee, double feePaid) {
         this.id = id;
@@ -25,20 +200,27 @@ class Student {
         return totalFee - feePaid;
     }
 
+    // Convert to CSV line for file saving
     String toCSV() {
         return id + "," + name + "," + className + "," + section + "," + parentContact + "," + totalFee + "," + feePaid;
     }
 
+    // Create Student object from a CSV line
     static Student fromCSV(String line) {
         String[] parts = line.split(",");
-        return new Student(parts[0], parts[1], parts[2], parts[3], parts[4], Double.parseDouble(parts[5]), Double.parseDouble(parts[6]));
+        return new Student(parts[0], parts[1], parts[2], parts[3], parts[4],
+                Double.parseDouble(parts[5]), Double.parseDouble(parts[6]));
     }
 }
 
-// Teacher Model
 class Teacher {
-    String id, name, subject, username, password;
-    double salary, salaryPaid;
+    String id;
+    String name;
+    String subject;
+    String username;
+    String password;
+    double salary;
+    double salaryPaid;
 
     Teacher(String id, String name, String subject, String username, String password, double salary, double salaryPaid) {
         this.id = id;
@@ -60,33 +242,17 @@ class Teacher {
 
     static Teacher fromCSV(String line) {
         String[] parts = line.split(",");
-        return new Teacher(parts[0], parts[1], parts[2], parts[3], parts[4], Double.parseDouble(parts[5]), Double.parseDouble(parts[6]));
+        return new Teacher(parts[0], parts[1], parts[2], parts[3], parts[4],
+                Double.parseDouble(parts[5]), Double.parseDouble(parts[6]));
     }
 }
 
-// Attendance Record
-class AttendanceRecord {
-    String studentId, date, status;
-
-    AttendanceRecord(String studentId, String date, String status) {
-        this.studentId = studentId;
-        this.date = date;
-        this.status = status;
-    }
-
-    String toCSV() {
-        return studentId + "," + date + "," + status;
-    }
-
-    static AttendanceRecord fromCSV(String line) {
-        String[] parts = line.split(",");
-        return new AttendanceRecord(parts[0], parts[1], parts[2]);
-    }
-}
-
-// Exam Model
 class Exam {
-    String examId, examType, className, subject, date;
+    String examId;
+    String examType;
+    String className;
+    String subject;
+    String date;
 
     Exam(String examId, String examType, String className, String subject, String date) {
         this.examId = examId;
@@ -106,28 +272,6 @@ class Exam {
     }
 }
 
-// Marks Model
-class Mark {
-    String studentId, examId;
-    double marksObtained;
-
-    Mark(String studentId, String examId, double marksObtained) {
-        this.studentId = studentId;
-        this.examId = examId;
-        this.marksObtained = marksObtained;
-    }
-
-    String toCSV() {
-        return studentId + "," + examId + "," + marksObtained;
-    }
-
-    static Mark fromCSV(String line) {
-        String[] parts = line.split(",");
-        return new Mark(parts[0], parts[1], Double.parseDouble(parts[2]));
-    }
-}
-
-// Expense Model
 class Expense {
     String name;
     double amount;
@@ -149,25 +293,21 @@ class Expense {
     }
 }
 
-// ------------------------------ SCHOOL CLASS ------------------------------
 
+// ======================== SCHOOL CLASS ========================
 class School {
     String schoolName;
     String adminPassword;
     String folderPath;
 
-    // Data storage
-    HashMap<String, Student> students = new HashMap<>();
-    HashMap<String, Teacher> teachers = new HashMap<>();
-    ArrayList<AttendanceRecord> attendanceRecords = new ArrayList<>();
-    ArrayList<Exam> exams = new ArrayList<>();
-    ArrayList<Mark> marks = new ArrayList<>();
-    ArrayList<Expense> expenses = new ArrayList<>();
+    // --- DATA STRUCTURES ---
+    HashMap<String, Student> students = new HashMap<>();   // key = student ID
+    HashMap<String, Teacher> teachers = new HashMap<>();   // key = teacher ID
+    AttendanceLinkedList attendanceList = new AttendanceLinkedList(); // Linked List
+    MarksStack marksStack = new MarksStack();              // Stack
+    ArrayList<Exam> examList = new ArrayList<>();
+    ArrayList<Expense> expenseList = new ArrayList<>();
 
-    // Helper maps for class-section grouping
-    HashMap<String, ArrayList<String>> classSectionToStudents = new HashMap<>();
-
-    // Constructor
     School(String schoolName, String adminPassword) {
         this.schoolName = schoolName;
         this.adminPassword = adminPassword;
@@ -176,20 +316,54 @@ class School {
         loadAllData();
     }
 
-    // Function: Create school folder if not exists
+    // Create folder for this school's data files
     void createFolder() {
-        File f = new File(folderPath);
-        if (!f.exists()) {
-            f.mkdirs();
+        File folder = new File(folderPath);
+        if (!folder.exists()) {
+            folder.mkdirs();
         }
     }
 
-    // Function: Get full file path inside school folder
-    String getPath(String fileName) {
+    // Get full path to a file inside school folder
+    String getFilePath(String fileName) {
         return folderPath + "/" + fileName;
     }
 
-    // ---------- LOAD / SAVE ALL DATA ----------
+    // Check if date is in valid format YYYY-MM-DD (simple check)
+    boolean isValidDate(String date) {
+        if (date.length() != 10) return false;
+        if (date.charAt(4) != '-' || date.charAt(7) != '-') return false;
+        return true;
+    }
+
+    // Check if class is 1-10 and section is A, B, or C
+    boolean isValidClassSection(String className, String section) {
+        int classNumber;
+        try {
+            classNumber = Integer.parseInt(className);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        if (classNumber < 1 || classNumber > 10) return false;
+        if (!section.equals("A") && !section.equals("B") && !section.equals("C")) return false;
+        return true;
+    }
+
+    // Get grade from percentage
+    String getGrade(double percentage) {
+        if (percentage >= 90) return "A+";
+        else if (percentage >= 80) return "A";
+        else if (percentage >= 70) return "B";
+        else if (percentage >= 60) return "C";
+        else if (percentage >= 50) return "D";
+        else return "F";
+    }
+
+
+    // ============================================================
+    //   LOAD / SAVE FUNCTIONS (File Handling with BufferedReader)
+    // ============================================================
+
     void loadAllData() {
         loadStudents();
         loadTeachers();
@@ -197,7 +371,6 @@ class School {
         loadExams();
         loadMarks();
         loadExpenses();
-        rebuildClassSectionMap();
     }
 
     void saveAllData() {
@@ -209,194 +382,203 @@ class School {
         saveExpenses();
     }
 
-    // Helper: validate date format YYYY-MM-DD
-    boolean isValidDate(String date) {
-        try {
-            LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
-            return true;
-        } catch (DateTimeParseException e) {
-            return false;
-        }
-    }
-
-    // Function: Load students from CSV
     void loadStudents() {
-        File f = new File(getPath("students.csv"));
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+        File file = new File(getFilePath("students.csv"));
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
-            while ((line = br.readLine()) != null) {
-                Student s = Student.fromCSV(line);
-                students.put(s.id, s);
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    Student s = Student.fromCSV(line);
+                    students.put(s.id, s);
+                }
             }
+            reader.close();
         } catch (IOException e) {
             System.out.println("Error loading students: " + e.getMessage());
         }
     }
 
-    // Function: Save students to CSV
     void saveStudents() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(getPath("students.csv")))) {
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(getFilePath("students.csv")));
             for (Student s : students.values()) {
-                pw.println(s.toCSV());
+                writer.println(s.toCSV());
             }
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving students: " + e.getMessage());
         }
     }
 
-    // Function: Load teachers from CSV
     void loadTeachers() {
-        File f = new File(getPath("teachers.csv"));
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+        File file = new File(getFilePath("teachers.csv"));
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
-            while ((line = br.readLine()) != null) {
-                Teacher t = Teacher.fromCSV(line);
-                teachers.put(t.id, t);
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    Teacher t = Teacher.fromCSV(line);
+                    teachers.put(t.id, t);
+                }
             }
+            reader.close();
         } catch (IOException e) {
             System.out.println("Error loading teachers: " + e.getMessage());
         }
     }
 
-    // Function: Save teachers to CSV
     void saveTeachers() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(getPath("teachers.csv")))) {
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(getFilePath("teachers.csv")));
             for (Teacher t : teachers.values()) {
-                pw.println(t.toCSV());
+                writer.println(t.toCSV());
             }
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving teachers: " + e.getMessage());
         }
     }
 
-    // Function: Load attendance records
-    void loadAttendance() {
-        File f = new File(getPath("attendance.csv"));
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                attendanceRecords.add(AttendanceRecord.fromCSV(line));
-            }
-        } catch (IOException e) {
-            System.out.println("Error loading attendance: " + e.getMessage());
-        }
-    }
-
-    // Function: Save attendance records
+    // Save attendance: walk the linked list and write each node to file
     void saveAttendance() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(getPath("attendance.csv")))) {
-            for (AttendanceRecord ar : attendanceRecords) {
-                pw.println(ar.toCSV());
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(getFilePath("attendance.csv")));
+            AttendanceNode current = attendanceList.head;
+            while (current != null) {
+                writer.println(current.studentId + "," + current.date + "," + current.status);
+                current = current.next;
             }
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving attendance: " + e.getMessage());
         }
     }
 
-    // Function: Load exams
-    void loadExams() {
-        File f = new File(getPath("exams.csv"));
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+    // Load attendance: read file line by line and add nodes to linked list
+    void loadAttendance() {
+        File file = new File(getFilePath("attendance.csv"));
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
-            while ((line = br.readLine()) != null) {
-                exams.add(Exam.fromCSV(line));
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    String[] parts = line.split(",");
+                    attendanceList.addRecord(parts[0], parts[1], parts[2]);
+                }
             }
+            reader.close();
+        } catch (IOException e) {
+            System.out.println("Error loading attendance: " + e.getMessage());
+        }
+    }
+
+    void loadExams() {
+        File file = new File(getFilePath("exams.csv"));
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    examList.add(Exam.fromCSV(line));
+                }
+            }
+            reader.close();
         } catch (IOException e) {
             System.out.println("Error loading exams: " + e.getMessage());
         }
     }
 
-    // Function: Save exams
     void saveExams() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(getPath("exams.csv")))) {
-            for (Exam e : exams) {
-                pw.println(e.toCSV());
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(getFilePath("exams.csv")));
+            for (Exam e : examList) {
+                writer.println(e.toCSV());
             }
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving exams: " + e.getMessage());
         }
     }
 
-    // Function: Load marks
-    void loadMarks() {
-        File f = new File(getPath("marks.csv"));
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                marks.add(Mark.fromCSV(line));
-            }
-        } catch (IOException e) {
-            System.out.println("Error loading marks: " + e.getMessage());
-        }
-    }
-
-    // Function: Save marks
+    // Save marks: collect all stack nodes into a temp list, then write to file
     void saveMarks() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(getPath("marks.csv")))) {
-            for (Mark m : marks) {
-                pw.println(m.toCSV());
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(getFilePath("marks.csv")));
+            MarksNode current = marksStack.top;
+            while (current != null) {
+                writer.println(current.studentId + "," + current.examId + "," + current.marksObtained);
+                current = current.below;
             }
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving marks: " + e.getMessage());
         }
     }
 
-    // Function: Load expenses
-    void loadExpenses() {
-        File f = new File(getPath("expenses.csv"));
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+    // Load marks: read file and push each entry onto the stack
+    void loadMarks() {
+        File file = new File(getFilePath("marks.csv"));
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
-            while ((line = br.readLine()) != null) {
-                expenses.add(Expense.fromCSV(line));
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    String[] parts = line.split(",");
+                    marksStack.push(parts[0], parts[1], Double.parseDouble(parts[2]));
+                }
             }
+            reader.close();
+        } catch (IOException e) {
+            System.out.println("Error loading marks: " + e.getMessage());
+        }
+    }
+
+    void loadExpenses() {
+        File file = new File(getFilePath("expenses.csv"));
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    expenseList.add(Expense.fromCSV(line));
+                }
+            }
+            reader.close();
         } catch (IOException e) {
             System.out.println("Error loading expenses: " + e.getMessage());
         }
     }
 
-    // Function: Save expenses
     void saveExpenses() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter(getPath("expenses.csv")))) {
-            for (Expense e : expenses) {
-                pw.println(e.toCSV());
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(getFilePath("expenses.csv")));
+            for (Expense e : expenseList) {
+                writer.println(e.toCSV());
             }
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving expenses: " + e.getMessage());
         }
     }
 
-    // Function: Rebuild class-section to student IDs map
-    void rebuildClassSectionMap() {
-        classSectionToStudents.clear();
-        for (Student s : students.values()) {
-            String key = s.className + "-" + s.section;
-            if (!classSectionToStudents.containsKey(key)) {
-                classSectionToStudents.put(key, new ArrayList<>());
-            }
-            classSectionToStudents.get(key).add(s.id);
-        }
-    }
 
-    // ---------- BUSINESS FUNCTIONS ----------
+    // ============================================================
+    //   STUDENT FUNCTIONS
+    // ============================================================
 
-    // Function: Validate class and section (1-10, A/B/C)
-    boolean isValidClassSection(String className, String section) {
-        try {
-            int c = Integer.parseInt(className);
-            if (c < 1 || c > 10) return false;
-        } catch (NumberFormatException e) {
-            return false;
-        }
-        return section.equals("A") || section.equals("B") || section.equals("C");
-    }
-
-    // Function: Add a student
     void addStudent(String id, String name, String className, String section, String parentContact, double totalFee) {
         if (students.containsKey(id)) {
             System.out.println("Student ID already exists!");
@@ -407,131 +589,139 @@ class School {
             return;
         }
         if (totalFee <= 0) {
-            System.out.println("Total fee must be positive!");
+            System.out.println("Total fee must be more than 0!");
             return;
         }
-        Student s = new Student(id, name, className, section, parentContact, totalFee, 0);
-        students.put(id, s);
-        String key = className + "-" + section;
-        if (!classSectionToStudents.containsKey(key)) {
-            classSectionToStudents.put(key, new ArrayList<>());
-        }
-        classSectionToStudents.get(key).add(id);
+        Student newStudent = new Student(id, name, className, section, parentContact, totalFee, 0);
+        students.put(id, newStudent);
         saveStudents();
         System.out.println("Student added successfully.");
     }
 
-    // Function: Remove a student
     void removeStudent(String id) {
         if (!students.containsKey(id)) {
             System.out.println("Student not found.");
             return;
-        }
-        Student s = students.get(id);
-        String key = s.className + "-" + s.section;
-        if (classSectionToStudents.containsKey(key)) {
-            classSectionToStudents.get(key).remove(id);
         }
         students.remove(id);
         saveStudents();
         System.out.println("Student removed.");
     }
 
-    // Function: Edit student details
-    void editStudent(String id, String newName, String newClass, String newSection, String newParentContact, double newTotalFee) {
+    void editStudent(String id, String newName, String newClass, String newSection, String newContact, double newTotalFee) {
         if (!students.containsKey(id)) {
             System.out.println("Student not found.");
             return;
         }
-        Student s = students.get(id);
         if (!isValidClassSection(newClass, newSection)) {
-            System.out.println("Invalid class/section.");
+            System.out.println("Invalid class or section.");
             return;
         }
-        // Prevent setting total fee lower than already paid
+        Student s = students.get(id);
         if (newTotalFee < s.feePaid) {
-            System.out.println("New total fee cannot be less than already paid amount (" + s.feePaid + ").");
+            System.out.println("New total fee cannot be less than already paid amount: " + s.feePaid);
             return;
         }
-        // Remove from old class-section map
-        String oldKey = s.className + "-" + s.section;
-        if (classSectionToStudents.containsKey(oldKey)) {
-            classSectionToStudents.get(oldKey).remove(id);
-        }
-        // Update student
         s.name = newName;
         s.className = newClass;
         s.section = newSection;
-        s.parentContact = newParentContact;
+        s.parentContact = newContact;
         s.totalFee = newTotalFee;
-        // Add to new class-section map
-        String newKey = newClass + "-" + newSection;
-        if (!classSectionToStudents.containsKey(newKey)) {
-            classSectionToStudents.put(newKey, new ArrayList<>());
-        }
-        classSectionToStudents.get(newKey).add(id);
         saveStudents();
         System.out.println("Student updated.");
     }
 
-    // Function: View all students (sorted by ID)
     void viewAllStudents() {
         if (students.isEmpty()) {
-            System.out.println("No students.");
+            System.out.println("No students found.");
             return;
         }
         System.out.println("\n--- All Students ---");
-        ArrayList<String> ids = new ArrayList<>(students.keySet());
-        Collections.sort(ids);
-        for (String id : ids) {
+        for (String id : students.keySet()) {
             Student s = students.get(id);
-            System.out.printf("ID: %s | Name: %s | Class: %s-%s | Parent: %s | Fee Paid: %.2f | Outstanding: %.2f\n",
-                    s.id, s.name, s.className, s.section, s.parentContact, s.feePaid, s.getOutstanding());
+            System.out.println("ID: " + s.id + " | Name: " + s.name + " | Class: " + s.className + "-" + s.section
+                    + " | Fee Paid: " + s.feePaid + " | Outstanding: " + s.getOutstanding());
         }
     }
 
-    // Function: View students by class & section
-    void viewStudentsByClassSection(String className, String section) {
-        String key = className + "-" + section;
-        if (!classSectionToStudents.containsKey(key) || classSectionToStudents.get(key).isEmpty()) {
-            System.out.println("No students in class " + className + "-" + section);
-            return;
-        }
+    void viewStudentsByClass(String className, String section) {
+        boolean found = false;
         System.out.println("\n--- Students in Class " + className + "-" + section + " ---");
-        for (String id : classSectionToStudents.get(key)) {
+        for (String id : students.keySet()) {
             Student s = students.get(id);
-            System.out.printf("ID: %s | Name: %s | Fee Paid: %.2f | Outstanding: %.2f\n",
-                    s.id, s.name, s.feePaid, s.getOutstanding());
+            if (s.className.equals(className) && s.section.equals(section)) {
+                System.out.println("ID: " + s.id + " | Name: " + s.name + " | Outstanding: " + s.getOutstanding());
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("No students in this class-section.");
         }
     }
 
-    // Function: Add teacher with subject validation (simple global duplicate check)
+    void searchStudentByName(String name) {
+        boolean found = false;
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
+            if (s.name.toLowerCase().contains(name.toLowerCase())) {
+                System.out.println("ID: " + s.id + " | Name: " + s.name + " | Class: " + s.className + "-" + s.section);
+                found = true;
+            }
+        }
+        if (!found) System.out.println("No student found with name: " + name);
+    }
+
+    void searchStudentByClass(String className) {
+        boolean found = false;
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
+            if (s.className.equals(className)) {
+                System.out.println("ID: " + s.id + " | Name: " + s.name + " | Section: " + s.section);
+                found = true;
+            }
+        }
+        if (!found) System.out.println("No students in class: " + className);
+    }
+
+    void searchStudentById(String rollId) {
+        if (students.containsKey(rollId)) {
+            Student s = students.get(rollId);
+            System.out.println("ID: " + s.id + " | Name: " + s.name + " | Class: " + s.className + "-" + s.section);
+        } else {
+            System.out.println("Student not found with ID: " + rollId);
+        }
+    }
+
+
+    // ============================================================
+    //   TEACHER FUNCTIONS
+    // ============================================================
+
     void addTeacher(String id, String name, String subject, String username, String password, double salary) {
         if (teachers.containsKey(id)) {
             System.out.println("Teacher ID already exists!");
             return;
         }
-        // Check duplicate username
-        for (Teacher t : teachers.values()) {
-            if (t.username.equals(username)) {
+        // Check if username is already taken
+        for (String key : teachers.keySet()) {
+            if (teachers.get(key).username.equals(username)) {
                 System.out.println("Username already taken!");
                 return;
             }
         }
-        // Optional: prevent duplicate subject (globally)
-        for (Teacher t : teachers.values()) {
-            if (t.subject.equalsIgnoreCase(subject)) {
-                System.out.println("A teacher already teaches subject: " + subject + " (global check).");
+        // Check if subject already assigned to another teacher
+        for (String key : teachers.keySet()) {
+            if (teachers.get(key).subject.equalsIgnoreCase(subject)) {
+                System.out.println("A teacher already teaches: " + subject);
                 return;
             }
         }
-        Teacher t = new Teacher(id, name, subject, username, password, salary, 0);
-        teachers.put(id, t);
+        Teacher newTeacher = new Teacher(id, name, subject, username, password, salary, 0);
+        teachers.put(id, newTeacher);
         saveTeachers();
         System.out.println("Teacher added successfully.");
     }
 
-    // Function: Remove teacher
     void removeTeacher(String id) {
         if (!teachers.containsKey(id)) {
             System.out.println("Teacher not found.");
@@ -542,32 +732,46 @@ class School {
         System.out.println("Teacher removed.");
     }
 
-    // Function: View all teachers
     void viewAllTeachers() {
         if (teachers.isEmpty()) {
-            System.out.println("No teachers.");
+            System.out.println("No teachers found.");
             return;
         }
         System.out.println("\n--- All Teachers ---");
-        for (Teacher t : teachers.values()) {
-            System.out.printf("ID: %s | Name: %s | Subject: %s | Username: %s | Salary: %.2f | Paid: %.2f\n",
-                    t.id, t.name, t.subject, t.username, t.salary, t.salaryPaid);
+        for (String id : teachers.keySet()) {
+            Teacher t = teachers.get(id);
+            System.out.println("ID: " + t.id + " | Name: " + t.name + " | Subject: " + t.subject
+                    + " | Salary: " + t.salary + " | Paid: " + t.salaryPaid);
         }
     }
 
-    // Function: Search teacher by subject
     void searchTeacherBySubject(String subject) {
         boolean found = false;
-        for (Teacher t : teachers.values()) {
+        for (String id : teachers.keySet()) {
+            Teacher t = teachers.get(id);
             if (t.subject.equalsIgnoreCase(subject)) {
-                System.out.printf("ID: %s | Name: %s | Subject: %s\n", t.id, t.name, t.subject);
+                System.out.println("ID: " + t.id + " | Name: " + t.name + " | Subject: " + t.subject);
                 found = true;
             }
         }
         if (!found) System.out.println("No teacher found for subject: " + subject);
     }
 
-    // Function: Mark attendance (by teacher, but we'll allow admin too)
+    Teacher teacherLogin(String username, String password) {
+        for (String id : teachers.keySet()) {
+            Teacher t = teachers.get(id);
+            if (t.username.equals(username) && t.password.equals(password)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+
+    // ============================================================
+    //   ATTENDANCE FUNCTIONS  (uses Linked List)
+    // ============================================================
+
     void markAttendance(String studentId, String date, String status) {
         if (!students.containsKey(studentId)) {
             System.out.println("Student not found.");
@@ -581,81 +785,184 @@ class School {
             System.out.println("Status must be Present or Absent.");
             return;
         }
-        // Check if attendance already recorded for this student on this date
-        boolean updated = false;
-        for (int i = 0; i < attendanceRecords.size(); i++) {
-            AttendanceRecord ar = attendanceRecords.get(i);
-            if (ar.studentId.equals(studentId) && ar.date.equals(date)) {
-                ar.status = status;
-                updated = true;
-                break;
-            }
-        }
+
+        // Try to update existing record first
+        boolean updated = attendanceList.updateRecord(studentId, date, status);
+
         if (!updated) {
-            attendanceRecords.add(new AttendanceRecord(studentId, date, status));
+            // No existing record found, add new node to linked list
+            attendanceList.addRecord(studentId, date, status);
         }
+
         saveAttendance();
-        System.out.println("Attendance " + (updated ? "updated" : "marked") + ".");
+        System.out.println("Attendance " + (updated ? "updated." : "marked."));
     }
 
-    // Function: Get attendance percentage for a student in date range
-    double getStudentAttendancePercentage(String studentId, String startDate, String endDate) {
-        int totalDays = 0;
-        int presentDays = 0;
-        for (AttendanceRecord ar : attendanceRecords) {
-            if (ar.studentId.equals(studentId) && ar.date.compareTo(startDate) >= 0 && ar.date.compareTo(endDate) <= 0) {
-                totalDays++;
-                if (ar.status.equals("Present")) presentDays++;
+    // Mark attendance for an ENTIRE class-section, one student at a time.
+    // Teacher selects Class + Section + Date, then for every enrolled
+    // student (sorted by Roll No / ID) is asked to enter P (Present) or A (Absent).
+    void markAttendanceByClass(String className, String section, String date, Scanner scanner) {
+        if (!isValidDate(date)) {
+            System.out.println("Invalid date format. Use YYYY-MM-DD.");
+            return;
+        }
+        if (!isValidClassSection(className, section)) {
+            System.out.println("Invalid class (1-10) or section (A/B/C).");
+            return;
+        }
+
+        // Collect all students of this class-section, sorted by Roll No (ID)
+        ArrayList<Student> classStudents = new ArrayList<>();
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
+            if (s.className.equals(className) && s.section.equals(section)) {
+                classStudents.add(s);
             }
         }
-        if (totalDays == 0) return 0;
-        return (presentDays * 100.0) / totalDays;
+
+        if (classStudents.isEmpty()) {
+            System.out.println("No students enrolled in Class " + className + "-" + section + ".");
+            return;
+        }
+
+        // Sort by Roll No (student ID) so the list is in order
+        classStudents.sort((a, b) -> a.id.compareTo(b.id));
+
+        System.out.println("\n--- Marking Attendance: Class " + className + "-" + section + " | Date: " + date + " ---");
+        System.out.println("Enter P for Present, A for Absent:\n");
+
+        int presentCount = 0;
+        int absentCount = 0;
+
+        for (Student s : classStudents) {
+            String status = null;
+            while (status == null) {
+                System.out.print(s.name + " (Roll No: " + s.id + ") - P/A: ");
+                String input = scanner.nextLine().trim().toUpperCase();
+                if (input.equals("P")) {
+                    status = "Present";
+                } else if (input.equals("A")) {
+                    status = "Absent";
+                } else {
+                    System.out.println("Invalid input! Please type P or A only.");
+                }
+            }
+
+            boolean updated = attendanceList.updateRecord(s.id, date, status);
+            if (!updated) {
+                attendanceList.addRecord(s.id, date, status);
+            }
+
+            if (status.equals("Present")) presentCount++;
+            else absentCount++;
+        }
+
+        saveAttendance();
+
+        System.out.println("\nAttendance recorded for Class " + className + "-" + section + " on " + date);
+        System.out.println("Present: " + presentCount + " | Absent: " + absentCount + " | Total: " + classStudents.size());
     }
 
-    // Function: Student-wise attendance report with date filter
-    void attendanceReportStudentWise(String startDate, String endDate) {
+    // Calculate and print attendance percentage for one student
+    void showStudentAttendance(String studentId, String startDate, String endDate) {
+        if (!students.containsKey(studentId)) {
+            System.out.println("Student not found.");
+            return;
+        }
+        int totalDays = attendanceList.countTotalDays(studentId, startDate, endDate);
+        int presentDays = attendanceList.countPresentDays(studentId, startDate, endDate);
+
+        if (totalDays == 0) {
+            System.out.println("No attendance records found for this student in given range.");
+            return;
+        }
+
+        double percentage = (presentDays * 100.0) / totalDays;
+        Student s = students.get(studentId);
+        System.out.println(s.name + " (" + studentId + ") : " + presentDays + "/" + totalDays + " = " + String.format("%.2f", percentage) + "%");
+    }
+
+    // Print attendance report for all students
+    void attendanceReportAllStudents(String startDate, String endDate) {
         if (!isValidDate(startDate) || !isValidDate(endDate)) {
             System.out.println("Invalid date format. Use YYYY-MM-DD.");
             return;
         }
-        System.out.println("\n--- Student-wise Attendance Report (" + startDate + " to " + endDate + ") ---");
-        for (Student s : students.values()) {
-            double per = getStudentAttendancePercentage(s.id, startDate, endDate);
-            System.out.printf("%s (%s) : %.2f%%\n", s.name, s.id, per);
+        System.out.println("\n--- Attendance Report (" + startDate + " to " + endDate + ") ---");
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
+            int total = attendanceList.countTotalDays(id, startDate, endDate);
+            int present = attendanceList.countPresentDays(id, startDate, endDate);
+            double percent = 0;
+            if (total > 0) {
+                percent = (present * 100.0) / total;
+            }
+            System.out.println(s.name + " (" + id + ") : " + String.format("%.2f", percent) + "%");
         }
     }
 
-    // Function: Class-wise attendance summary
-    void attendanceReportClassWise(String startDate, String endDate) {
+    // Print class-wise average attendance
+    void attendanceReportByClass(String startDate, String endDate) {
         if (!isValidDate(startDate) || !isValidDate(endDate)) {
             System.out.println("Invalid date format. Use YYYY-MM-DD.");
             return;
         }
-        System.out.println("\n--- Class-wise Attendance Summary (" + startDate + " to " + endDate + ") ---");
-        HashMap<String, Integer> classTotalStudents = new HashMap<>();
-        HashMap<String, Double> classTotalPercentage = new HashMap<>();
-        for (Student s : students.values()) {
-            String cls = s.className;
-            double per = getStudentAttendancePercentage(s.id, startDate, endDate);
-            if (!classTotalStudents.containsKey(cls)) {
-                classTotalStudents.put(cls, 0);
-                classTotalPercentage.put(cls, 0.0);
+        System.out.println("\n--- Class-wise Attendance (" + startDate + " to " + endDate + ") ---");
+
+        HashMap<String, Integer> classCount = new HashMap<>();
+        HashMap<String, Double> classTotal = new HashMap<>();
+
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
+            int total = attendanceList.countTotalDays(id, startDate, endDate);
+            int present = attendanceList.countPresentDays(id, startDate, endDate);
+            double percent = 0;
+            if (total > 0) {
+                percent = (present * 100.0) / total;
             }
-            classTotalStudents.put(cls, classTotalStudents.get(cls) + 1);
-            classTotalPercentage.put(cls, classTotalPercentage.get(cls) + per);
+
+            if (!classCount.containsKey(s.className)) {
+                classCount.put(s.className, 0);
+                classTotal.put(s.className, 0.0);
+            }
+            classCount.put(s.className, classCount.get(s.className) + 1);
+            classTotal.put(s.className, classTotal.get(s.className) + percent);
         }
-        for (String cls : classTotalStudents.keySet()) {
-            int count = classTotalStudents.get(cls);
-            double totalPer = classTotalPercentage.get(cls);
-            double avg = (count == 0) ? 0 : totalPer / count;
-            System.out.printf("Class %s : Average Attendance = %.2f%%\n", cls, avg);
+
+        for (String cls : classCount.keySet()) {
+            int count = classCount.get(cls);
+            double average = classTotal.get(cls) / count;
+            System.out.println("Class " + cls + " : Average = " + String.format("%.2f", average) + "%");
         }
     }
 
-    // Function: Create exam
+    // Filter attendance by date range and student name
+    void filterAttendance(String startDate, String endDate, String studentName) {
+        if (!isValidDate(startDate) || !isValidDate(endDate)) {
+            System.out.println("Invalid date format. Use YYYY-MM-DD.");
+            return;
+        }
+        System.out.println("\n--- Filtered Attendance ---");
+        AttendanceNode current = attendanceList.head;
+        while (current != null) {
+            if (current.date.compareTo(startDate) >= 0 && current.date.compareTo(endDate) <= 0) {
+                Student s = students.get(current.studentId);
+                if (s != null && s.name.toLowerCase().contains(studentName.toLowerCase())) {
+                    System.out.println(s.name + " (" + current.studentId + ") | " + current.date + " | " + current.status);
+                }
+            }
+            current = current.next;
+        }
+    }
+
+
+    // ============================================================
+    //   EXAM & MARKS FUNCTIONS  (Marks uses Stack)
+    // ============================================================
+
     void createExam(String examId, String examType, String className, String subject, String date) {
-        // Check for duplicate examId
-        for (Exam e : exams) {
+        // Check for duplicate exam ID
+        for (Exam e : examList) {
             if (e.examId.equals(examId)) {
                 System.out.println("Exam ID already exists!");
                 return;
@@ -665,12 +972,11 @@ class School {
             System.out.println("Invalid date format. Use YYYY-MM-DD.");
             return;
         }
-        exams.add(new Exam(examId, examType, className, subject, date));
+        examList.add(new Exam(examId, examType, className, subject, date));
         saveExams();
         System.out.println("Exam created.");
     }
 
-    // Function: Enter marks for a student
     void enterMarks(String studentId, String examId, double obtainedMarks) {
         if (!students.containsKey(studentId)) {
             System.out.println("Student not found.");
@@ -680,34 +986,23 @@ class School {
             System.out.println("Marks must be between 0 and 100.");
             return;
         }
-        // Check if marks already exist for this student and exam
-        boolean updated = false;
-        for (int i = 0; i < marks.size(); i++) {
-            Mark m = marks.get(i);
-            if (m.studentId.equals(studentId) && m.examId.equals(examId)) {
-                m.marksObtained = obtainedMarks;
-                updated = true;
-                break;
-            }
-        }
-        if (!updated) {
-            marks.add(new Mark(studentId, examId, obtainedMarks));
-        }
+        // addOrUpdate handles both new entry and update in stack
+        marksStack.addOrUpdate(studentId, examId, obtainedMarks);
         saveMarks();
-        System.out.println("Marks " + (updated ? "updated" : "entered") + ".");
+        System.out.println("Marks saved.");
     }
 
-    // Function: Get grade based on percentage
-    String getGrade(double percentage) {
-        if (percentage >= 90) return "A+";
-        else if (percentage >= 80) return "A";
-        else if (percentage >= 70) return "B";
-        else if (percentage >= 60) return "C";
-        else if (percentage >= 50) return "D";
-        else return "F";
+    // Undo last marks entry (pop from stack)
+    void undoLastMarks() {
+        MarksNode removed = marksStack.pop();
+        if (removed == null) {
+            System.out.println("No marks to undo.");
+        } else {
+            saveMarks();
+            System.out.println("Undone: " + removed.studentId + " | Exam: " + removed.examId + " | Marks: " + removed.marksObtained);
+        }
     }
 
-    // Function: Generate student report card
     void generateReportCard(String studentId) {
         if (!students.containsKey(studentId)) {
             System.out.println("Student not found.");
@@ -720,32 +1015,24 @@ class School {
         System.out.println("Parent Contact: " + s.parentContact);
         System.out.println("Fee Paid: " + s.feePaid + " | Outstanding: " + s.getOutstanding());
         System.out.println("\n--- Exam Results ---");
-        // Get all exams for this student's class
-        for (Exam exam : exams) {
+
+        for (Exam exam : examList) {
             if (exam.className.equals(s.className)) {
-                double obtained = -1;
-                for (Mark m : marks) {
-                    if (m.studentId.equals(studentId) && m.examId.equals(exam.examId)) {
-                        obtained = m.marksObtained;
-                        break;
-                    }
-                }
+                double obtained = marksStack.findMarks(studentId, exam.examId);
                 if (obtained >= 0) {
-                    double percent = obtained;
-                    String grade = getGrade(percent);
-                    System.out.printf("Exam: %s | Subject: %s | Marks: %.2f | Grade: %s\n", exam.examType, exam.subject, obtained, grade);
+                    System.out.println("Exam: " + exam.examType + " | Subject: " + exam.subject
+                            + " | Marks: " + obtained + " | Grade: " + getGrade(obtained));
                 } else {
-                    System.out.printf("Exam: %s | Subject: %s | Marks: Not entered\n", exam.examType, exam.subject);
+                    System.out.println("Exam: " + exam.examType + " | Subject: " + exam.subject + " | Marks: Not entered");
                 }
             }
         }
         System.out.println("=================================\n");
     }
 
-    // Function: Class performance report for a specific exam
     void classPerformanceReport(String examId) {
         Exam targetExam = null;
-        for (Exam e : exams) {
+        for (Exam e : examList) {
             if (e.examId.equals(examId)) {
                 targetExam = e;
                 break;
@@ -755,26 +1042,25 @@ class School {
             System.out.println("Exam not found.");
             return;
         }
-        System.out.println("\n--- Class Performance for Exam: " + targetExam.examType + " (" + targetExam.subject + ") ---");
-        for (Student s : students.values()) {
+        System.out.println("\n--- Class Performance: " + targetExam.examType + " (" + targetExam.subject + ") ---");
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
             if (s.className.equals(targetExam.className)) {
-                double obtainedMarks = -1;
-                for (Mark m : marks) {
-                    if (m.studentId.equals(s.id) && m.examId.equals(examId)) {
-                        obtainedMarks = m.marksObtained;
-                        break;
-                    }
-                }
-                if (obtainedMarks >= 0) {
-                    System.out.printf("%s (%s) : %.2f | Grade: %s\n", s.name, s.id, obtainedMarks, getGrade(obtainedMarks));
+                double obtained = marksStack.findMarks(id, examId);
+                if (obtained >= 0) {
+                    System.out.println(s.name + " (" + id + ") : " + obtained + " | Grade: " + getGrade(obtained));
                 } else {
-                    System.out.printf("%s (%s) : Marks not entered\n", s.name, s.id);
+                    System.out.println(s.name + " (" + id + ") : Marks not entered");
                 }
             }
         }
     }
 
-    // Function: Pay student fee
+
+    // ============================================================
+    //   FEE & SALARY FUNCTIONS
+    // ============================================================
+
     void payStudentFee(String studentId, double amount) {
         if (!students.containsKey(studentId)) {
             System.out.println("Student not found.");
@@ -782,20 +1068,19 @@ class School {
         }
         Student s = students.get(studentId);
         if (amount <= 0) {
-            System.out.println("Amount must be positive.");
+            System.out.println("Amount must be more than 0.");
             return;
         }
         double outstanding = s.getOutstanding();
         if (amount > outstanding) {
-            System.out.println("Cannot pay more than outstanding. Outstanding: " + outstanding);
+            System.out.println("Cannot pay more than outstanding: " + outstanding);
             return;
         }
-        s.feePaid += amount;
+        s.feePaid = s.feePaid + amount;
         saveStudents();
         System.out.println("Fee paid. New outstanding: " + s.getOutstanding());
     }
 
-    // Function: Pay teacher salary
     void payTeacherSalary(String teacherId, double amount) {
         if (!teachers.containsKey(teacherId)) {
             System.out.println("Teacher not found.");
@@ -804,193 +1089,123 @@ class School {
         Teacher t = teachers.get(teacherId);
         double remaining = t.getRemainingSalary();
         if (amount <= 0) {
-            System.out.println("Amount must be positive.");
+            System.out.println("Amount must be more than 0.");
             return;
         }
         if (amount > remaining) {
-            System.out.println("Cannot pay more than remaining salary. Remaining: " + remaining);
+            System.out.println("Cannot pay more than remaining salary: " + remaining);
             return;
         }
-        t.salaryPaid += amount;
+        t.salaryPaid = t.salaryPaid + amount;
         saveTeachers();
         System.out.println("Salary paid to " + t.name + ". Total paid: " + t.salaryPaid);
     }
 
-    // Function: Add other expense
     void addExpense(String name, double amount, String date) {
         if (amount <= 0) {
-            System.out.println("Amount must be positive.");
+            System.out.println("Amount must be more than 0.");
             return;
         }
         if (!isValidDate(date)) {
             System.out.println("Invalid date format. Use YYYY-MM-DD.");
             return;
         }
-        expenses.add(new Expense(name, amount, date));
+        expenseList.add(new Expense(name, amount, date));
         saveExpenses();
         System.out.println("Expense added.");
     }
 
-    // Function: Calculate total fees collected
-    double getTotalFeesCollected() {
-        double total = 0;
-        for (Student s : students.values()) {
-            total += s.feePaid;
-        }
-        return total;
-    }
-
-    // Function: Calculate total salaries paid
-    double getTotalSalariesPaid() {
-        double total = 0;
-        for (Teacher t : teachers.values()) {
-            total += t.salaryPaid;
-        }
-        return total;
-    }
-
-    // Function: Calculate total expenses
-    double getTotalExpenses() {
-        double total = 0;
-        for (Expense e : expenses) {
-            total += e.amount;
-        }
-        return total;
-    }
-
-    // Function: Financial report
     void financialReport() {
-        double fees = getTotalFeesCollected();
-        double salaries = getTotalSalariesPaid();
-        double expenses = getTotalExpenses();
-        double revenue = fees - salaries;
-        double netProfit = fees - (salaries + expenses);
+        double totalFeeCollected = 0;
+        double totalSalaryPaid = 0;
+        double totalExpenses = 0;
+
+        for (String id : students.keySet()) {
+            totalFeeCollected = totalFeeCollected + students.get(id).feePaid;
+        }
+        for (String id : teachers.keySet()) {
+            totalSalaryPaid = totalSalaryPaid + teachers.get(id).salaryPaid;
+        }
+        for (Expense e : expenseList) {
+            totalExpenses = totalExpenses + e.amount;
+        }
+
+        double netRevenue = totalFeeCollected - totalSalaryPaid;
+        double netProfit = totalFeeCollected - totalSalaryPaid - totalExpenses;
+
         System.out.println("\n========== FINANCIAL REPORT ==========");
-        System.out.printf("Total Fees Collected: %.2f\n", fees);
-        System.out.printf("Total Salaries Paid: %.2f\n", salaries);
-        System.out.printf("Total Other Expenses: %.2f\n", expenses);
-        System.out.printf("Net Revenue (Fees - Salaries): %.2f\n", revenue);
-        System.out.printf("Net Profit (Fees - Salaries - Expenses): %.2f\n", netProfit);
+        System.out.println("Total Fees Collected : " + String.format("%.2f", totalFeeCollected));
+        System.out.println("Total Salaries Paid  : " + String.format("%.2f", totalSalaryPaid));
+        System.out.println("Total Other Expenses : " + String.format("%.2f", totalExpenses));
+        System.out.println("Net Revenue          : " + String.format("%.2f", netRevenue));
+        System.out.println("Net Profit           : " + String.format("%.2f", netProfit));
         System.out.println("=======================================\n");
     }
 
-    // Function: Fee reminders - list outstanding students with alert message
     void feeReminders() {
-        System.out.println("\n--- Fee Reminders & Due Alerts ---");
-        boolean any = false;
-        for (Student s : students.values()) {
-            double outstanding = s.getOutstanding();
-            if (outstanding > 0) {
-                any = true;
-                System.out.println("ALERT: Student " + s.name + " (ID: " + s.id + ") has outstanding fee of " + outstanding);
+        System.out.println("\n--- Fee Reminders ---");
+        boolean anyOutstanding = false;
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
+            if (s.getOutstanding() > 0) {
+                System.out.println("ALERT: " + s.name + " (ID: " + s.id + ") owes: " + s.getOutstanding());
+                anyOutstanding = true;
             }
         }
-        if (!any) {
+        if (!anyOutstanding) {
             System.out.println("No outstanding fees.");
         }
     }
 
-    // Function: Promotion - move all students to next class, with fee carry forward option
-    void promoteStudents(boolean carryFee, boolean resetTotalFee, double newTotalFee) {
-        HashMap<String, Student> newStudents = new HashMap<>();
-        for (Student s : students.values()) {
+    // Promote all students to next class (class 10 students graduate and are removed)
+    void promoteStudents(boolean carryFee, boolean resetFee, double newTotalFee) {
+        HashMap<String, Student> updatedStudents = new HashMap<>();
+
+        for (String id : students.keySet()) {
+            Student s = students.get(id);
             int currentClass = Integer.parseInt(s.className);
+
             if (currentClass == 10) {
-                // graduate - do not carry forward
+                // Graduate - do not carry forward
+                System.out.println("Graduated: " + s.name);
                 continue;
             }
+
             int nextClass = currentClass + 1;
-            String newClassName = String.valueOf(nextClass);
-            String newSection = "A"; // reset to A by default
-            double newFeePaid = carryFee ? s.feePaid : 0;
-            double newTotal = resetTotalFee ? newTotalFee : s.totalFee;
-            Student promoted = new Student(s.id, s.name, newClassName, newSection, s.parentContact, newTotal, newFeePaid);
-            newStudents.put(s.id, promoted);
+            double newFeePaid = 0;
+            if (carryFee) {
+                newFeePaid = s.feePaid;
+            }
+            double newTotal = s.totalFee;
+            if (resetFee) {
+                newTotal = newTotalFee;
+            }
+
+            Student promoted = new Student(s.id, s.name, String.valueOf(nextClass), "A",
+                    s.parentContact, newTotal, newFeePaid);
+            updatedStudents.put(id, promoted);
         }
+
         students.clear();
-        students.putAll(newStudents);
-        rebuildClassSectionMap();
+        students.putAll(updatedStudents);
         saveStudents();
-        System.out.println("Promotion completed. Students moved to next class. Fee carry forward: " + (carryFee ? "Yes" : "No"));
-        if (resetTotalFee) {
-            System.out.println("Total fee reset to: " + newTotalFee);
-        } else {
-            System.out.println("Total fee unchanged.");
-        }
+        System.out.println("Promotion done. Class 10 students graduated.");
     }
 
-    // Function: Search student by name (contains)
-    void searchStudentByName(String name) {
-        boolean found = false;
-        for (Student s : students.values()) {
-            if (s.name.toLowerCase().contains(name.toLowerCase())) {
-                System.out.printf("ID: %s | Name: %s | Class: %s-%s\n", s.id, s.name, s.className, s.section);
-                found = true;
-            }
-        }
-        if (!found) System.out.println("No student found with name containing: " + name);
-    }
-
-    // Function: Search student by class
-    void searchStudentByClass(String className) {
-        boolean found = false;
-        for (Student s : students.values()) {
-            if (s.className.equals(className)) {
-                System.out.printf("ID: %s | Name: %s | Section: %s\n", s.id, s.name, s.section);
-                found = true;
-            }
-        }
-        if (!found) System.out.println("No students in class: " + className);
-    }
-
-    // Function: Search student by roll number (ID)
-    void searchStudentByRoll(String roll) {
-        if (students.containsKey(roll)) {
-            Student s = students.get(roll);
-            System.out.printf("ID: %s | Name: %s | Class: %s-%s\n", s.id, s.name, s.className, s.section);
-        } else {
-            System.out.println("Student not found with ID: " + roll);
-        }
-    }
-
-    // Function: Filter attendance by date range and student name
-    void filterAttendanceByDateAndName(String startDate, String endDate, String studentName) {
-        if (!isValidDate(startDate) || !isValidDate(endDate)) {
-            System.out.println("Invalid date format. Use YYYY-MM-DD.");
-            return;
-        }
-        System.out.println("\n--- Attendance Filter (Date: " + startDate + " to " + endDate + ", Name: " + studentName + ") ---");
-        for (AttendanceRecord ar : attendanceRecords) {
-            if (ar.date.compareTo(startDate) >= 0 && ar.date.compareTo(endDate) <= 0) {
-                Student s = students.get(ar.studentId);
-                if (s != null && s.name.toLowerCase().contains(studentName.toLowerCase())) {
-                    System.out.printf("Student: %s (%s) | Date: %s | Status: %s\n", s.name, ar.studentId, ar.date, ar.status);
-                }
-            }
-        }
-    }
-
-    // Function: Teacher login validation
-    Teacher teacherLogin(String username, String password) {
-        for (Teacher t : teachers.values()) {
-            if (t.username.equals(username) && t.password.equals(password)) {
-                return t;
-            }
-        }
-        return null;
-    }
 }
 
-// ------------------------------ MAIN APPLICATION ------------------------------
 
+// ======================== MAIN APPLICATION ========================
 public class SchoolCRM {
+
     static HashMap<String, School> schoolMap = new HashMap<>();
     static Scanner scanner = new Scanner(System.in);
     static School currentSchool = null;
     static Teacher loggedTeacher = null;
 
     public static void main(String[] args) {
-        loadAllSchoolsCredentials();
+        loadSchoolCredentials();
+
         while (true) {
             if (currentSchool == null) {
                 System.out.println("\n===== SCHOOL CRM =====");
@@ -999,6 +1214,7 @@ public class SchoolCRM {
                 System.out.println("3. Exit");
                 System.out.print("Choice: ");
                 String choice = scanner.nextLine();
+
                 if (choice.equals("1")) {
                     login();
                 } else if (choice.equals("2")) {
@@ -1020,13 +1236,15 @@ public class SchoolCRM {
         }
     }
 
-    // Function: Load all school credentials from file
-    static void loadAllSchoolsCredentials() {
-        File f = new File("school_credentials.txt");
-        if (!f.exists()) return;
-        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+    // Load school names and passwords from file
+    static void loadSchoolCredentials() {
+        File file = new File("school_credentials.txt");
+        if (!file.exists()) return;
+
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(file));
             String line;
-            while ((line = br.readLine()) != null) {
+            while ((line = reader.readLine()) != null) {
                 String[] parts = line.split(",");
                 if (parts.length == 2) {
                     String name = parts[0];
@@ -1035,28 +1253,29 @@ public class SchoolCRM {
                     schoolMap.put(name, school);
                 }
             }
+            reader.close();
         } catch (IOException e) {
-            System.out.println("Error loading school credentials: " + e.getMessage());
+            System.out.println("Error loading credentials: " + e.getMessage());
         }
     }
 
-    // Function: Save school credentials (called when registering)
+    // Save one school credential to file (append mode)
     static void saveSchoolCredential(String schoolName, String password) {
-        try (PrintWriter pw = new PrintWriter(new FileWriter("school_credentials.txt", true))) {
-            pw.println(schoolName + "," + password);
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter("school_credentials.txt", true));
+            writer.println(schoolName + "," + password);
+            writer.close();
         } catch (IOException e) {
             System.out.println("Error saving credential.");
         }
     }
 
-    // Function: Save all schools data
     static void saveAllSchools() {
-        for (School s : schoolMap.values()) {
-            s.saveAllData();
+        for (String name : schoolMap.keySet()) {
+            schoolMap.get(name).saveAllData();
         }
     }
 
-    // Function: Register new school
     static void registerSchool() {
         System.out.print("Enter School Name: ");
         String name = scanner.nextLine();
@@ -1072,86 +1291,105 @@ public class SchoolCRM {
         System.out.println("School registered successfully!");
     }
 
-    // Function: Login to school (admin or teacher)
     static void login() {
         System.out.print("School Name: ");
         String name = scanner.nextLine();
-        System.out.print("Admin Password (leave blank for teacher login): ");
-        String pass = scanner.nextLine();
         School school = schoolMap.get(name);
         if (school == null) {
             System.out.println("School not found.");
             return;
         }
+
+        System.out.print("Admin Password (leave blank to try teacher login): ");
+        String pass = scanner.nextLine();
+
         if (!pass.isEmpty() && pass.equals(school.adminPassword)) {
             currentSchool = school;
             loggedTeacher = null;
             System.out.println("Admin login successful. Welcome to " + name);
             return;
         }
+
         // Try teacher login
-        System.out.print("Enter Teacher Username: ");
-        String uname = scanner.nextLine();
-        System.out.print("Enter Teacher Password: ");
-        String upass = scanner.nextLine();
-        Teacher t = school.teacherLogin(uname, upass);
+        System.out.print("Teacher Username: ");
+        String username = scanner.nextLine();
+        System.out.print("Teacher Password: ");
+        String tpass = scanner.nextLine();
+        Teacher t = school.teacherLogin(username, tpass);
+
         if (t != null) {
             currentSchool = school;
             loggedTeacher = t;
             System.out.println("Teacher login successful. Welcome " + t.name);
         } else {
-            System.out.println("Invalid admin password or teacher credentials.");
+            System.out.println("Invalid credentials.");
         }
     }
 
-    // ---------- ADMIN MENU ----------
+
+    // ============================================================
+    //   ADMIN MENUS
+    // ============================================================
+
     static void showAdminMenu() {
-        System.out.println("\n===== " + currentSchool.schoolName + " (Admin Dashboard) =====");
-        System.out.println("1. Student Management");
-        System.out.println("2. Teacher Management");
-        System.out.println("3. Attendance Management");
-        System.out.println("4. Exam & Marks Management");
-        System.out.println("5. Fee & Salary Management");
-        System.out.println("6. Expense Tracking");
-        System.out.println("7. Reports");
-        System.out.println("8. Fee Reminders");
-        System.out.println("9. Promotion (Next Class)");
+        System.out.println("\n===== " + currentSchool.schoolName + " - Admin =====");
+        System.out.println("1.  Student Management");
+        System.out.println("2.  Teacher Management");
+        System.out.println("3.  Attendance");
+        System.out.println("4.  Exams & Marks");
+        System.out.println("5.  Fee & Salary");
+        System.out.println("6.  Add Expense");
+        System.out.println("7.  Reports");
+        System.out.println("8.  Fee Reminders");
+        System.out.println("9.  Promote Students");
         System.out.println("10. Search & Filter");
         System.out.println("11. Logout");
         System.out.print("Choice: ");
         String ch = scanner.nextLine();
-        switch (ch) {
-            case "1": adminStudentMenu(); break;
-            case "2": adminTeacherMenu(); break;
-            case "3": adminAttendanceMenu(); break;
-            case "4": adminExamMenu(); break;
-            case "5": adminFeeSalaryMenu(); break;
-            case "6": adminExpenseMenu(); break;
-            case "7": adminReportsMenu(); break;
-            case "8": currentSchool.feeReminders(); break;
-            case "9": adminPromotionMenu(); break;
-            case "10": adminSearchMenu(); break;
-            case "11":
-                currentSchool.saveAllData();
-                currentSchool = null;
-                loggedTeacher = null;
-                System.out.println("Logged out.");
-                break;
-            default: System.out.println("Invalid choice.");
+
+        if (ch.equals("1")) {
+            adminStudentMenu();
+        } else if (ch.equals("2")) {
+            adminTeacherMenu();
+        } else if (ch.equals("3")) {
+            adminAttendanceMenu();
+        } else if (ch.equals("4")) {
+            adminExamMenu();
+        } else if (ch.equals("5")) {
+            adminFeeSalaryMenu();
+        } else if (ch.equals("6")) {
+            adminAddExpense();
+        } else if (ch.equals("7")) {
+            adminReportsMenu();
+        } else if (ch.equals("8")) {
+            currentSchool.feeReminders();
+        } else if (ch.equals("9")) {
+            adminPromotionMenu();
+        } else if (ch.equals("10")) {
+            adminSearchMenu();
+        } else if (ch.equals("11")) {
+            currentSchool.saveAllData();
+            currentSchool = null;
+            loggedTeacher = null;
+            System.out.println("Logged out.");
+        }  else {
+            System.out.println("Invalid choice.");
         }
     }
 
     static void adminStudentMenu() {
-        while (true) {
+        boolean running = true;
+        while (running) {
             System.out.println("\n--- Student Management ---");
             System.out.println("1. Add Student");
             System.out.println("2. Edit Student");
             System.out.println("3. Remove Student");
             System.out.println("4. View All Students");
-            System.out.println("5. View Students by Class & Section");
+            System.out.println("5. View by Class & Section");
             System.out.println("6. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
                 System.out.print("ID: "); String id = scanner.nextLine();
                 System.out.print("Name: "); String name = scanner.nextLine();
@@ -1164,14 +1402,14 @@ public class SchoolCRM {
                 System.out.print("Student ID: "); String id = scanner.nextLine();
                 if (!currentSchool.students.containsKey(id)) {
                     System.out.println("Student not found.");
-                    continue;
+                } else {
+                    System.out.print("New Name: "); String name = scanner.nextLine();
+                    System.out.print("New Class (1-10): "); String cls = scanner.nextLine();
+                    System.out.print("New Section (A/B/C): "); String sec = scanner.nextLine();
+                    System.out.print("New Parent Contact: "); String contact = scanner.nextLine();
+                    System.out.print("New Total Fee: "); double fee = Double.parseDouble(scanner.nextLine());
+                    currentSchool.editStudent(id, name, cls, sec, contact, fee);
                 }
-                System.out.print("New Name: "); String name = scanner.nextLine();
-                System.out.print("New Class (1-10): "); String cls = scanner.nextLine();
-                System.out.print("New Section (A/B/C): "); String sec = scanner.nextLine();
-                System.out.print("New Parent Contact: "); String contact = scanner.nextLine();
-                System.out.print("New Total Fee: "); double fee = Double.parseDouble(scanner.nextLine());
-                currentSchool.editStudent(id, name, cls, sec, contact, fee);
             } else if (opt.equals("3")) {
                 System.out.print("Student ID: "); String id = scanner.nextLine();
                 currentSchool.removeStudent(id);
@@ -1180,9 +1418,9 @@ public class SchoolCRM {
             } else if (opt.equals("5")) {
                 System.out.print("Class (1-10): "); String cls = scanner.nextLine();
                 System.out.print("Section (A/B/C): "); String sec = scanner.nextLine();
-                currentSchool.viewStudentsByClassSection(cls, sec);
+                currentSchool.viewStudentsByClass(cls, sec);
             } else if (opt.equals("6")) {
-                break;
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
@@ -1190,15 +1428,17 @@ public class SchoolCRM {
     }
 
     static void adminTeacherMenu() {
-        while (true) {
+        boolean running = true;
+        while (running) {
             System.out.println("\n--- Teacher Management ---");
             System.out.println("1. Add Teacher");
             System.out.println("2. Remove Teacher");
             System.out.println("3. View All Teachers");
-            System.out.println("4. Search Teacher by Subject");
+            System.out.println("4. Search by Subject");
             System.out.println("5. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
                 System.out.print("ID: "); String id = scanner.nextLine();
                 System.out.print("Name: "); String name = scanner.nextLine();
@@ -1216,7 +1456,7 @@ public class SchoolCRM {
                 System.out.print("Subject: "); String sub = scanner.nextLine();
                 currentSchool.searchTeacherBySubject(sub);
             } else if (opt.equals("5")) {
-                break;
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
@@ -1224,29 +1464,31 @@ public class SchoolCRM {
     }
 
     static void adminAttendanceMenu() {
-        while (true) {
-            System.out.println("\n--- Attendance Management ---");
-            System.out.println("1. Mark Attendance (Student ID, Date, Present/Absent)");
-            System.out.println("2. Student-wise Attendance Report (with date range)");
-            System.out.println("3. Class-wise Attendance Summary (with date range)");
+        boolean running = true;
+        while (running) {
+            System.out.println("\n--- Attendance ---");
+            System.out.println("1. Mark Attendance (Class & Section)");
+            System.out.println("2. Student-wise Report");
+            System.out.println("3. Class-wise Report");
             System.out.println("4. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
-                System.out.print("Student ID: "); String sid = scanner.nextLine();
+                System.out.print("Class (1-10): "); String cls = scanner.nextLine();
+                System.out.print("Section (A/B/C): "); String sec = scanner.nextLine();
                 System.out.print("Date (YYYY-MM-DD): "); String dt = scanner.nextLine();
-                System.out.print("Status (Present/Absent): "); String st = scanner.nextLine();
-                currentSchool.markAttendance(sid, dt, st);
+                currentSchool.markAttendanceByClass(cls, sec, dt, scanner);
             } else if (opt.equals("2")) {
                 System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
                 System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
-                currentSchool.attendanceReportStudentWise(sd, ed);
+                currentSchool.attendanceReportAllStudents(sd, ed);
             } else if (opt.equals("3")) {
                 System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
                 System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
-                currentSchool.attendanceReportClassWise(sd, ed);
+                currentSchool.attendanceReportByClass(sd, ed);
             } else if (opt.equals("4")) {
-                break;
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
@@ -1254,18 +1496,21 @@ public class SchoolCRM {
     }
 
     static void adminExamMenu() {
-        while (true) {
-            System.out.println("\n--- Exam & Marks Management ---");
+        boolean running = true;
+        while (running) {
+            System.out.println("\n--- Exams & Marks ---");
             System.out.println("1. Create Exam");
-            System.out.println("2. Enter Marks for Student");
-            System.out.println("3. Generate Student Report Card");
-            System.out.println("4. Class Performance Report (by Exam ID)");
-            System.out.println("5. Back");
+            System.out.println("2. Enter Marks");
+            System.out.println("3. Undo Last Marks Entry");
+            System.out.println("4. Generate Report Card");
+            System.out.println("5. Class Performance Report");
+            System.out.println("6. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
                 System.out.print("Exam ID: "); String eid = scanner.nextLine();
-                System.out.print("Exam Type (Test/Mid Term/Final Term): "); String type = scanner.nextLine();
+                System.out.print("Type (Test/Mid Term/Final Term): "); String type = scanner.nextLine();
                 System.out.print("Class (1-10): "); String cls = scanner.nextLine();
                 System.out.print("Subject: "); String sub = scanner.nextLine();
                 System.out.print("Date (YYYY-MM-DD): "); String dt = scanner.nextLine();
@@ -1273,16 +1518,18 @@ public class SchoolCRM {
             } else if (opt.equals("2")) {
                 System.out.print("Student ID: "); String sid = scanner.nextLine();
                 System.out.print("Exam ID: "); String eid = scanner.nextLine();
-                System.out.print("Marks (0-100): "); double marks = Double.parseDouble(scanner.nextLine());
-                currentSchool.enterMarks(sid, eid, marks);
+                System.out.print("Marks (0-100): "); double m = Double.parseDouble(scanner.nextLine());
+                currentSchool.enterMarks(sid, eid, m);
             } else if (opt.equals("3")) {
+                currentSchool.undoLastMarks();
+            } else if (opt.equals("4")) {
                 System.out.print("Student ID: "); String sid = scanner.nextLine();
                 currentSchool.generateReportCard(sid);
-            } else if (opt.equals("4")) {
+            } else if (opt.equals("5")) {
                 System.out.print("Exam ID: "); String eid = scanner.nextLine();
                 currentSchool.classPerformanceReport(eid);
-            } else if (opt.equals("5")) {
-                break;
+            } else if (opt.equals("6")) {
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
@@ -1290,14 +1537,16 @@ public class SchoolCRM {
     }
 
     static void adminFeeSalaryMenu() {
-        while (true) {
-            System.out.println("\n--- Fee & Salary Management ---");
+        boolean running = true;
+        while (running) {
+            System.out.println("\n--- Fee & Salary ---");
             System.out.println("1. Pay Student Fee");
             System.out.println("2. Pay Teacher Salary");
-            System.out.println("3. Financial Report (Revenue, Profit)");
+            System.out.println("3. Financial Report");
             System.out.println("4. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
                 System.out.print("Student ID: "); String sid = scanner.nextLine();
                 System.out.print("Amount: "); double amt = Double.parseDouble(scanner.nextLine());
@@ -1309,47 +1558,46 @@ public class SchoolCRM {
             } else if (opt.equals("3")) {
                 currentSchool.financialReport();
             } else if (opt.equals("4")) {
-                break;
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
         }
     }
 
-    static void adminExpenseMenu() {
-        System.out.print("Expense Name: ");
-        String name = scanner.nextLine();
-        System.out.print("Amount: ");
-        double amt = Double.parseDouble(scanner.nextLine());
-        System.out.print("Date (YYYY-MM-DD): ");
-        String dt = scanner.nextLine();
+    static void adminAddExpense() {
+        System.out.print("Expense Name: "); String name = scanner.nextLine();
+        System.out.print("Amount: "); double amt = Double.parseDouble(scanner.nextLine());
+        System.out.print("Date (YYYY-MM-DD): "); String dt = scanner.nextLine();
         currentSchool.addExpense(name, amt, dt);
     }
 
     static void adminReportsMenu() {
-        while (true) {
+        boolean running = true;
+        while (running) {
             System.out.println("\n--- Reports ---");
             System.out.println("1. Financial Report");
-            System.out.println("2. Student-wise Attendance Report (with date range)");
-            System.out.println("3. Class-wise Attendance Summary");
-            System.out.println("4. View All Students (sorted)");
+            System.out.println("2. Student Attendance Report");
+            System.out.println("3. Class-wise Attendance Report");
+            System.out.println("4. View All Students");
             System.out.println("5. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
                 currentSchool.financialReport();
             } else if (opt.equals("2")) {
                 System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
                 System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
-                currentSchool.attendanceReportStudentWise(sd, ed);
+                currentSchool.attendanceReportAllStudents(sd, ed);
             } else if (opt.equals("3")) {
                 System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
                 System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
-                currentSchool.attendanceReportClassWise(sd, ed);
+                currentSchool.attendanceReportByClass(sd, ed);
             } else if (opt.equals("4")) {
                 currentSchool.viewAllStudents();
             } else if (opt.equals("5")) {
-                break;
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
@@ -1358,106 +1606,99 @@ public class SchoolCRM {
 
     static void adminPromotionMenu() {
         System.out.print("Carry forward paid fee? (yes/no): ");
-        String carryAns = scanner.nextLine();
-        boolean carry = carryAns.equalsIgnoreCase("yes");
-        System.out.print("Reset total fee to a new value? (yes/no): ");
-        String resetAns = scanner.nextLine();
-        boolean reset = resetAns.equalsIgnoreCase("yes");
-        double newTotalFee = 0;
-        if (reset) {
-            System.out.print("Enter new total fee amount for promoted students: ");
-            newTotalFee = Double.parseDouble(scanner.nextLine());
+        String ans1 = scanner.nextLine();
+        boolean carryFee = ans1.equalsIgnoreCase("yes");
+
+        System.out.print("Reset total fee to new amount? (yes/no): ");
+        String ans2 = scanner.nextLine();
+        boolean resetFee = ans2.equalsIgnoreCase("yes");
+
+        double newFee = 0;
+        if (resetFee) {
+            System.out.print("New total fee amount: ");
+            newFee = Double.parseDouble(scanner.nextLine());
         }
-        currentSchool.promoteStudents(carry, reset, newTotalFee);
+        currentSchool.promoteStudents(carryFee, resetFee, newFee);
     }
 
     static void adminSearchMenu() {
-        while (true) {
+        boolean running = true;
+        while (running) {
             System.out.println("\n--- Search & Filter ---");
             System.out.println("1. Search Student by Name");
             System.out.println("2. Search Student by Class");
-            System.out.println("3. Search Student by Roll Number (ID)");
-            System.out.println("4. Filter Attendance by Date Range & Student Name");
+            System.out.println("3. Search Student by ID");
+            System.out.println("4. Filter Attendance by Date & Name");
             System.out.println("5. Back");
             System.out.print("Choice: ");
             String opt = scanner.nextLine();
+
             if (opt.equals("1")) {
-                System.out.print("Name (partial): "); String nm = scanner.nextLine();
+                System.out.print("Name: "); String nm = scanner.nextLine();
                 currentSchool.searchStudentByName(nm);
             } else if (opt.equals("2")) {
                 System.out.print("Class (1-10): "); String cls = scanner.nextLine();
                 currentSchool.searchStudentByClass(cls);
             } else if (opt.equals("3")) {
-                System.out.print("Roll Number (ID): "); String rid = scanner.nextLine();
-                currentSchool.searchStudentByRoll(rid);
+                System.out.print("Student ID: "); String rid = scanner.nextLine();
+                currentSchool.searchStudentById(rid);
             } else if (opt.equals("4")) {
                 System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
                 System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
-                System.out.print("Student Name (partial): "); String nm = scanner.nextLine();
-                currentSchool.filterAttendanceByDateAndName(sd, ed, nm);
+                System.out.print("Student Name: "); String nm = scanner.nextLine();
+                currentSchool.filterAttendance(sd, ed, nm);
             } else if (opt.equals("5")) {
-                break;
+                running = false;
             } else {
                 System.out.println("Invalid.");
             }
         }
     }
 
-    // ---------- TEACHER MENU ----------
+
+    // ============================================================
+    //   TEACHER MENUS
+    // ============================================================
+
     static void showTeacherMenu() {
-        System.out.println("\n===== " + currentSchool.schoolName + " (Teacher: " + loggedTeacher.name + ") =====");
-        System.out.println("1. Mark Attendance");
+        System.out.println("\n===== " + currentSchool.schoolName + " - Teacher: " + loggedTeacher.name + " =====");
+        System.out.println("1. Mark Attendance (Class & Section)");
         System.out.println("2. Enter Exam Marks");
         System.out.println("3. View Student Report Card");
-        System.out.println("4. View Class Performance Report");
-        System.out.println("5. View Attendance Reports");
+        System.out.println("4. Class Performance Report");
+        System.out.println("5. Attendance Reports");
         System.out.println("6. Logout");
         System.out.print("Choice: ");
         String ch = scanner.nextLine();
-        switch (ch) {
-            case "1": teacherMarkAttendance(); break;
-            case "2": teacherEnterMarks(); break;
-            case "3": teacherViewReportCard(); break;
-            case "4": teacherClassPerformance(); break;
-            case "5": teacherAttendanceReports(); break;
-            case "6":
-                currentSchool.saveAllData();
-                currentSchool = null;
-                loggedTeacher = null;
-                System.out.println("Logged out.");
-                break;
-            default: System.out.println("Invalid choice.");
+
+        if (ch.equals("1")) {
+            System.out.print("Class (1-10): "); String cls = scanner.nextLine();
+            System.out.print("Section (A/B/C): "); String sec = scanner.nextLine();
+            System.out.print("Date (YYYY-MM-DD): "); String dt = scanner.nextLine();
+            currentSchool.markAttendanceByClass(cls, sec, dt, scanner);
+        } else if (ch.equals("2")) {
+            System.out.print("Exam ID: "); String eid = scanner.nextLine();
+            System.out.print("Student ID: "); String sid = scanner.nextLine();
+            System.out.print("Marks (0-100): "); double m = Double.parseDouble(scanner.nextLine());
+            currentSchool.enterMarks(sid, eid, m);
+        } else if (ch.equals("3")) {
+            System.out.print("Student ID: "); String sid = scanner.nextLine();
+            currentSchool.generateReportCard(sid);
+        } else if (ch.equals("4")) {
+            System.out.print("Exam ID: "); String eid = scanner.nextLine();
+            currentSchool.classPerformanceReport(eid);
+        } else if (ch.equals("5")) {
+            System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
+            System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
+            currentSchool.attendanceReportAllStudents(sd, ed);
+            currentSchool.attendanceReportByClass(sd, ed);
+        } else if (ch.equals("6")) {
+            currentSchool.saveAllData();
+            currentSchool = null;
+            loggedTeacher = null;
+            System.out.println("Logged out.");
+        } else {
+            System.out.println("Invalid choice.");
         }
-    }
-
-    static void teacherMarkAttendance() {
-        System.out.print("Student ID: "); String sid = scanner.nextLine();
-        System.out.print("Date (YYYY-MM-DD): "); String dt = scanner.nextLine();
-        System.out.print("Status (Present/Absent): "); String st = scanner.nextLine();
-        currentSchool.markAttendance(sid, dt, st);
-    }
-
-    static void teacherEnterMarks() {
-        System.out.print("Exam ID: "); String eid = scanner.nextLine();
-        System.out.print("Student ID: "); String sid = scanner.nextLine();
-        System.out.print("Marks (0-100): "); double marks = Double.parseDouble(scanner.nextLine());
-        currentSchool.enterMarks(sid, eid, marks);
-    }
-
-    static void teacherViewReportCard() {
-        System.out.print("Student ID: "); String sid = scanner.nextLine();
-        currentSchool.generateReportCard(sid);
-    }
-
-    static void teacherClassPerformance() {
-        System.out.print("Exam ID: "); String eid = scanner.nextLine();
-        currentSchool.classPerformanceReport(eid);
-    }
-
-    static void teacherAttendanceReports() {
-        System.out.print("Start Date (YYYY-MM-DD): "); String sd = scanner.nextLine();
-        System.out.print("End Date (YYYY-MM-DD): "); String ed = scanner.nextLine();
-        currentSchool.attendanceReportStudentWise(sd, ed);
-        currentSchool.attendanceReportClassWise(sd, ed);
     }
 }
